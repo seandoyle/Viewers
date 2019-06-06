@@ -5,33 +5,38 @@ import OHIF from 'ohif-core';
 const { setToolActive } = OHIF.redux.actions;
 
 const mapStateToProps = state => {
-  const activeButton = state.tools.buttons.find(tool => tool.active === true);
-
   return {
     buttons: [
       {
+        command: 'WWWC',
+        type: 'tool',
+        text: 'WWWC',
+        icon: 'level',
+        active: true,
+        onClick: () => {
+          // TODO: Make these use setToolActive instead
+          window.commandsManager.runCommand('enableLevelTool', {}, 'vtk');
+        }
+      },
+      /*{ // This is currently disabled until we can correctly switch interactor styles (https://github.com/Kitware/vtk-js/issues/1110)
         command: 'Rotate',
         type: 'tool',
         text: 'Rotate',
         icon: '3d-rotate',
-        active: true
-      }
+        active: false,
+        onClick: () => {
+          // TODO: Make these use setToolActive instead
+          window.commandsManager.runCommand('enableRotateTool', {}, 'vtk');
+        }
+      },*/
     ],
-    activeCommand: 'Rotate'
-  };
-};
-
-const mapDispatchToProps = dispatch => {
-  return {
-    setToolActive: tool => {
-      //dispatch(setToolActive(tool.command))
-    }
+    activeCommand: 'WWWC'
   };
 };
 
 const ConnectedToolbarSection = connect(
   mapStateToProps,
-  mapDispatchToProps
+  null
 )(ToolbarSection);
 
 export default ConnectedToolbarSection;

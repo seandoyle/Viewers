@@ -39,6 +39,9 @@ const commandsManagerConfig = {
 const commandsManager = new CommandsManager(commandsManagerConfig);
 const hotkeysManager = new HotkeysManager(commandsManager);
 
+// TODO: @dannyrb will fix this
+window.commandsManager = commandsManager;
+
 // TODO: Should be done in extensions w/ commandsModule
 // ~~ ADD COMMANDS
 appCommands.init(commandsManager);
@@ -67,7 +70,7 @@ const children = {
 /** TODO: extensions should be passed in as prop as soon as we have the extensions as separate packages and then registered by ExtensionsManager */
 extensions.ExtensionManager.registerExtensions(store, [
   new OHIFCornerstoneExtension({ children }),
-  new OHIFVTKExtension(),
+  new OHIFVTKExtension({ commandsManager }),
   new OHIFDicomPDFExtension(),
   new OHIFDicomHtmlExtension(),
   new OHIFDicomMicroscopyExtension(),
