@@ -1,6 +1,5 @@
 import { vtkInteractorStyleMPRWindowLevel, vtkInteractorStyleMPRSlice, vtkInteractorStyleMPRCrosshairs } from 'react-vtkjs-viewport';
 
-import linkAllInteractors from './utils/linkAllInteractors.js';
 import setViewportToVTK from './utils/setViewportToVTK.js'
 import setMPRLayout from './utils/setMPRLayout.js'
 import vtkMath from 'vtk.js/Sources/Common/Core/Math';
@@ -46,6 +45,9 @@ function _setView(api, sliceNormal, viewUp) {
   istyle.setSliceNormal(...sliceNormal);
   camera.setViewUp(...viewUp);
 
+  api.volumes[0].getMapper().setSampleDistance(5.0);
+  api.volumes[0].getMapper().setMaximumSamplesPerRay(2000)
+
   renderWindow.render();
 }
 
@@ -76,6 +78,7 @@ const actions = {
 
     const renderWindow = api.genericRenderWindow.getRenderWindow();
     renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
+    renderWindow.getInteractor().getInteractorStyle().delete();
 
     const istyle = vtkInteractorStyleMPRSlice.newInstance();
     renderWindow.getInteractor().setInteractorStyle(istyle)
@@ -87,24 +90,45 @@ const actions = {
       istyle.setVolumeMapper(api.volumes[0]);
     }
   },
+  enableCrosshairsTool: async ({viewports }) => {
+    apiByViewport.forEach(api => {
+      const renderWindow = api.genericRenderWindow.getRenderWindow();
+      const renderer = api.genericRenderWindow.getRenderer();
+      const istyle = vtkInteractorStyleMPRCrosshairs.newInstance();
+
+      // TODO: This attempts to avoid the lingering subscription in the MPR Interactor Style
+      renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
+
+      renderWindow.getInteractor().setInteractorStyle(istyle)
+
+      // TODO: Not sure why this is required the second time this function is called
+      istyle.setInteractor(renderWindow.getInteractor());
+
+      // Note: we are actually passing the volume actor itself...
+      if (istyle.getVolumeMapper() !== api.volumes[0]) {
+        istyle.setVolumeMapper(api.volumes[0]);
+      }
+    });
+  },
   enableLevelTool: async ({viewports }) => {
-    const api = await _getActiveViewportVTKApi(viewports);
+    apiByViewport.forEach(api => {
+      const renderWindow = api.genericRenderWindow.getRenderWindow();
+      const renderer = api.genericRenderWindow.getRenderer();
+      const istyle = vtkInteractorStyleMPRWindowLevel.newInstance();
 
-    const renderWindow = api.genericRenderWindow.getRenderWindow();
-    const renderer = api.genericRenderWindow.getRenderer();
-    const camera = renderer.getActiveCamera();
+      // TODO: This attempts to avoid the lingering subscription in the MPR Interactor Style
+      renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
 
-    const istyle = vtkInteractorStyleMPRWindowLevel.newInstance();
+      renderWindow.getInteractor().setInteractorStyle(istyle)
 
-    // TODO: This attempts to avoid the lingering subscription in the MPR Interactor Style
-    renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
+      // TODO: Not sure why this is required the second time this function is called
+      istyle.setInteractor(renderWindow.getInteractor());
 
-    renderWindow.getInteractor().setInteractorStyle(istyle)
-
-    // Note: we are actually passing the volume actor itself...
-    if (istyle.getVolumeMapper() !== api.volumes[0]) {
-      istyle.setVolumeMapper(api.volumes[0]);
-    }
+      // Note: we are actually passing the volume actor itself...
+      if (istyle.getVolumeMapper() !== api.volumes[0]) {
+        istyle.setVolumeMapper(api.volumes[0]);
+      }
+    });
   },
   mpr2d: async ({viewports}) => {
     const displaySet = viewports.viewportSpecificData[viewports.activeViewportIndex];
@@ -134,6 +158,7 @@ const actions = {
           // that we want to jump to instead of the camera focal point.
           // I would rather do the camera adjustment directly but I keep
           // doing it wrong and so this is good enough for now.
+          const renderWindow = api.genericRenderWindow.getRenderWindow()
           const istyle = renderWindow.getInteractor().getInteractorStyle();
           const sliceNormal = istyle.getSliceNormal();
           const transform = vtkMatrixBuilder
@@ -146,14 +171,23 @@ const actions = {
           const slice = mutatedWorldPos[0];
 
           istyle.setSlice(slice);
+
+          renderWindow.render();
         });
       }
     }
 
-    const renderWindows = [];
+    const rgbTransferFunction = apiByViewport[0].volumes[0].getProperty().getRGBTransferFunction(0);
+    rgbTransferFunction.onModified(() => {
+      apiByViewport.forEach(a => {
+        const renderWindow = a.genericRenderWindow.getRenderWindow();
+
+        renderWindow.render();
+      })
+    });
+
     apiByViewport.forEach((api, index) => {
       const renderWindow = api.genericRenderWindow.getRenderWindow()
-      renderWindows.push(renderWindow);
       const renderer = api.genericRenderWindow.getRenderer();
       const camera = renderer.getActiveCamera();
 
@@ -189,8 +223,6 @@ const actions = {
 
       renderWindow.render();
     });
-
-    linkAllInteractors(renderWindows);
   }
 };
 
@@ -215,6 +247,11 @@ const definitions = {
     storeContexts: ['viewports'],
     options: {},
   },
+  enableCrosshairsTool: {
+    commandFn: actions.enableCrosshairsTool,
+    storeContexts: ['viewports'],
+    options: {},
+  }
   enableLevelTool: {
     commandFn: actions.enableLevelTool,
     storeContexts: ['viewports'],

@@ -8,6 +8,17 @@ const mapStateToProps = state => {
   return {
     buttons: [
       {
+        command: 'Crosshairs',
+        type: 'tool',
+        text: 'Crosshairs',
+        icon: 'crosshairs',
+        active: true,
+        onClick: () => {
+          // TODO: Make these use setToolActive instead
+          window.commandsManager.runCommand('enableCrosshairsTool', {}, 'vtk');
+        }
+      },
+      {
         command: 'WWWC',
         type: 'tool',
         text: 'WWWC',
@@ -18,7 +29,7 @@ const mapStateToProps = state => {
           window.commandsManager.runCommand('enableLevelTool', {}, 'vtk');
         }
       },
-      /*{ // This is currently disabled until we can correctly switch interactor styles (https://github.com/Kitware/vtk-js/issues/1110)
+      {
         command: 'Rotate',
         type: 'tool',
         text: 'Rotate',
@@ -28,9 +39,9 @@ const mapStateToProps = state => {
           // TODO: Make these use setToolActive instead
           window.commandsManager.runCommand('enableRotateTool', {}, 'vtk');
         }
-      },*/
+      },
     ],
-    activeCommand: 'WWWC'
+    activeCommand: 'Crosshairs'
   };
 };
 

@@ -38,7 +38,7 @@ const mergeProps = (propsFromState, propsFromDispatch, ownProps) => {
   // TODO: Do not display certain options if the current display set
   // cannot be displayed using these view types
   const buttons = [
-    {
+    /*{
       text: 'Acquired',
       type: 'command',
       icon: 'bars',
@@ -78,7 +78,7 @@ const mergeProps = (propsFromState, propsFromDispatch, ownProps) => {
       onClick: () => {
         window.commandsManager.runCommand('coronal', {}, 'vtk');
       },
-    },
+    },*/
     {
       text: '2D MPR',
       icon: 'cube',
