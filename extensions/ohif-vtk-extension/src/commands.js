@@ -3,6 +3,8 @@ import { vtkInteractorStyleMPRWindowLevel, vtkInteractorStyleMPRSlice, vtkIntera
 import linkAllInteractors from './utils/linkAllInteractors.js';
 import setViewportToVTK from './utils/setViewportToVTK.js'
 import setMPRLayout from './utils/setMPRLayout.js'
+import vtkMath from 'vtk.js/Sources/Common/Core/Math';
+import vtkMatrixBuilder from 'vtk.js/Sources/Common/Core/MatrixBuilder';
 
 // TODO: Should be another way to get this
 const commandsManager = window.commandsManager;
@@ -81,7 +83,9 @@ const actions = {
     // TODO: Not sure why this is required the second time this function is called
     istyle.setInteractor(renderWindow.getInteractor());
 
-    istyle.setVolumeMapper(api.volumes[0]);
+    if (istyle.getVolumeMapper() !== api.volumes[0]) {
+      istyle.setVolumeMapper(api.volumes[0]);
+    }
   },
   enableLevelTool: async ({viewports }) => {
     const api = await _getActiveViewportVTKApi(viewports);
@@ -98,7 +102,9 @@ const actions = {
     renderWindow.getInteractor().setInteractorStyle(istyle)
 
     // Note: we are actually passing the volume actor itself...
-    istyle.setVolumeMapper(api.volumes[0]);
+    if (istyle.getVolumeMapper() !== api.volumes[0]) {
+      istyle.setVolumeMapper(api.volumes[0]);
+    }
   },
   mpr2d: async ({viewports}) => {
     const displaySet = viewports.viewportSpecificData[viewports.activeViewportIndex];
@@ -111,6 +117,38 @@ const actions = {
     }
 
     apis = apiByViewport;
+
+    function getCrosshairCallbackForIndex(index) {
+      return (worldPos) => {
+        console.warn(`crosshairs callback ${index}`);
+        console.warn(worldPos);
+
+        // Set camera focal point to world coordinate for linked views
+        apiByViewport.forEach((api, viewportIndex) => {
+          if (viewportIndex === index) {
+            return;
+          }
+
+
+          // We are basically doing the same as getSlice but with the world coordinate
+          // that we want to jump to instead of the camera focal point.
+          // I would rather do the camera adjustment directly but I keep
+          // doing it wrong and so this is good enough for now.
+          const istyle = renderWindow.getInteractor().getInteractorStyle();
+          const sliceNormal = istyle.getSliceNormal();
+          const transform = vtkMatrixBuilder
+            .buildFromDegree()
+            .identity()
+            .rotateFromDirections(sliceNormal, [1, 0, 0]);
+
+          const mutatedWorldPos = worldPos.slice();
+          transform.apply(mutatedWorldPos);
+          const slice = mutatedWorldPos[0];
+
+          istyle.setSlice(slice);
+        });
+      }
+    }
 
     const renderWindows = [];
     apiByViewport.forEach((api, index) => {
@@ -125,10 +163,7 @@ const actions = {
 
       const istyle = vtkInteractorStyleMPRCrosshairs.newInstance();
       istyle.setVolumeMapper(api.volumes[0])
-      istyle.setCallback((data) => {
-        console.warn(`crosshairs callback ${index}`);
-        console.warn(data);
-      });
+      istyle.setCallback(getCrosshairCallbackForIndex(index));
 
       renderWindow.getInteractor().setInteractorStyle(istyle)
 
