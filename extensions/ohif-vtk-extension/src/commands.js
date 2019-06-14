@@ -1,5 +1,4 @@
-import vtkInteractorStyleMPRSlice from 'vtk.js/Sources/Interaction/Style/InteractorStyleMPRSlice';
-import { CustomSliceInteractorStyle } from 'react-vtkjs-viewport';
+import { vtkInteractorStyleMPRWindowLevel, vtkInteractorStyleMPRSlice, vtkInteractorStyleMPRCrosshairs } from 'react-vtkjs-viewport';
 
 import linkAllInteractors from './utils/linkAllInteractors.js';
 import setViewportToVTK from './utils/setViewportToVTK.js'
@@ -48,63 +47,34 @@ function _setView(api, sliceNormal, viewUp) {
   renderWindow.render();
 }
 
-function _setViewSlice(api, slicingMode, viewUp) {
-  const renderWindow = api.genericRenderWindow.getRenderWindow()
-
-  // TODO: This is a hacky workaround because disabling the vtkInteractorStyleMPRSlice is currently
-  // broken. The camera.onModified is never removed. (https://github.com/Kitware/vtk-js/issues/1110)
-  const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
-  if (currentIStyle.setVolumeMapper) {
-    currentIStyle.setVolumeMapper(null);
-  }
-
-  const sliceIstyle = CustomSliceInteractorStyle.newInstance();
-
-  renderWindow.getInteractor().setInteractorStyle(sliceIstyle)
-  sliceIstyle.setCurrentVolumeNumber(0) // background volume
-  sliceIstyle.setSlicingMode(slicingMode, true);
-
-  const extentMinMax = api.volumes[0].getMapper().getInputData().getExtent();
-  const sliceMax = extentMinMax[slicingMode * 2 + 1];
-  sliceIstyle.setSlice(Math.round(sliceMax / 2));
-
-  const renderer = api.genericRenderWindow.getRenderer();
-  const camera = renderer.getActiveCamera();
-
-  camera.setViewUp(...viewUp);
-
-  renderWindow.render();
-}
-
 const actions = {
   axial: async ({viewports}) => {
     const api = await _getActiveViewportVTKApi(viewports);
 
     apis[viewports.activeViewportIndex] = api;
 
-    //_setView(api, [0, 0, 1], [0, -1, 0]);
-    _setViewSlice(api, 2, [0, -1, 0]);
+    _setView(api, [0, 0, 1], [0, -1, 0]);
   },
   sagittal: async ({viewports}) => {
     const api = await _getActiveViewportVTKApi(viewports);
 
     apis[viewports.activeViewportIndex] = api;
 
-    //_setView(api, [1, 0, 0], [0, 0, 1]);
-    _setViewSlice(api, 0, [0, 0, 1]);
+    _setView(api, [1, 0, 0], [0, 0, 1]);
   },
   coronal: async ({viewports}) => {
     const api = await _getActiveViewportVTKApi(viewports);
 
     apis[viewports.activeViewportIndex] = api;
 
-    //_setView(api, [0, 1, 0], [0, 0, 1]);
-    _setViewSlice(api, 1, [0, 0, 1]);
+    _setView(api, [0, 1, 0], [0, 0, 1]);
   },
   enableRotateTool: async ({viewports }) => {
     const api = await _getActiveViewportVTKApi(viewports);
 
     const renderWindow = api.genericRenderWindow.getRenderWindow();
+    renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
+
     const istyle = vtkInteractorStyleMPRSlice.newInstance();
     renderWindow.getInteractor().setInteractorStyle(istyle)
 
@@ -117,10 +87,18 @@ const actions = {
     const api = await _getActiveViewportVTKApi(viewports);
 
     const renderWindow = api.genericRenderWindow.getRenderWindow();
-    const istyle = CustomSliceInteractorStyle.newInstance();
+    const renderer = api.genericRenderWindow.getRenderer();
+    const camera = renderer.getActiveCamera();
+
+    const istyle = vtkInteractorStyleMPRWindowLevel.newInstance();
+
+    // TODO: This attempts to avoid the lingering subscription in the MPR Interactor Style
+    renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
 
     renderWindow.getInteractor().setInteractorStyle(istyle)
-    istyle.setCurrentVolumeNumber(0)
+
+    // Note: we are actually passing the volume actor itself...
+    istyle.setVolumeMapper(api.volumes[0]);
   },
   mpr2d: async ({viewports}) => {
     const displaySet = viewports.viewportSpecificData[viewports.activeViewportIndex];
@@ -138,53 +116,41 @@ const actions = {
     apiByViewport.forEach((api, index) => {
       const renderWindow = api.genericRenderWindow.getRenderWindow()
       renderWindows.push(renderWindow);
-
-      const istyle = renderWindow.getInteractor().getInteractorStyle();
-
-      // TODO: This is a hacky workaround because disabling the vtkInteractorStyleMPRSlice is currently
-      // broken. The camera.onModified is never removed. (https://github.com/Kitware/vtk-js/issues/1110)
-      const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
-      if (currentIStyle.setVolumeMapper) {
-        currentIStyle.setVolumeMapper(null);
-      }
-
-      const sliceIstyle = CustomSliceInteractorStyle.newInstance();
-
-      renderWindow.getInteractor().setInteractorStyle(sliceIstyle)
-      sliceIstyle.setCurrentVolumeNumber(0) // background volume
-
       const renderer = api.genericRenderWindow.getRenderer();
       const camera = renderer.getActiveCamera();
 
-      let slicingMode;
+      // TODO: This is a hacky workaround because disabling the vtkInteractorStyleMPRSlice is currently
+      // broken. The camera.onModified is never removed. (https://github.com/Kitware/vtk-js/issues/1110)
+      renderWindow.getInteractor().getInteractorStyle().setInteractor(null);
+
+      const istyle = vtkInteractorStyleMPRCrosshairs.newInstance();
+      istyle.setVolumeMapper(api.volumes[0])
+      istyle.setCallback((data) => {
+        console.warn(`crosshairs callback ${index}`);
+        console.warn(data);
+      });
+
+      renderWindow.getInteractor().setInteractorStyle(istyle)
 
       switch (index) {
         default:
         case 0:
           //Axial
-          //istyle.setSliceNormal(0, 0, 1);
-          slicingMode = 2;
+          istyle.setSliceNormal(0, 0, 1);
           camera.setViewUp(0, -1, 0);
 
           break;
         case 1:
           // sagittal
-          //istyle.setSliceNormal(1, 0, 0);
-          slicingMode = 0;
-          //camera.setViewUp(0, 0, 1);
+          istyle.setSliceNormal(1, 0, 0);
+          camera.setViewUp(0, 0, 1);
           break;
         case 2:
           // Coronal
-          //istyle.setSliceNormal(0, 1, 0);
-          slicingMode = 1;
-          //camera.setViewUp(0, 0, 1);
+          istyle.setSliceNormal(0, 1, 0);
+          camera.setViewUp(0, 0, 1);
           break;
       }
-
-      sliceIstyle.setSlicingMode(slicingMode, true) // force set slice mode
-      const extentMinMax = api.volumes[0].getMapper().getInputData().getExtent();
-      const sliceMax = extentMinMax[slicingMode * 2 + 1];
-      sliceIstyle.setSlice(Math.round(sliceMax / 2));
 
       renderWindow.render();
     });
